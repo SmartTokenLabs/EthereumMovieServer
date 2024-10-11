@@ -2,7 +2,7 @@ import fastify from "fastify";
 import { FastifyInstance } from "fastify/types/instance";
 import { ethers } from "ethers";
 // @ts-ignore
-import { INFURA_KEY, MOVIE_NAME } from "./constants";
+import { INFURA_KEY, MOVIE_NAME, NODE_ENV } from "./constants";
 import fs from "fs";
 import cors from "@fastify/cors";
 import path from 'path';
@@ -101,9 +101,12 @@ async function createServer() {
 
   app = fastify({
     maxParamLength: 1024,
-    ...(process.env.NODE_ENV !== "development"
+    ...(process.env.NODE_ENV === "production"
       ? {
-         
+        https: {
+          key: fs.readFileSync('./cert/key.pem'),
+          cert: fs.readFileSync('./cert/cert.pem')
+        }
         }
       : {}),
   });
@@ -317,7 +320,7 @@ const start = async () => {
     const app = await createServer();
 
     const host = "0.0.0.0";
-    const port = 8082;
+    const port = NODE_ENV === "production" ? 443 : 8082;
     await app.listen({ port, host });
     console.log(`Server is listening on ${host} ${port}`);
 
