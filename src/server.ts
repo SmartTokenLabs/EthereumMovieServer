@@ -106,8 +106,8 @@ async function createServer() {
     ...(process.env.NODE_ENV === "production"
       ? {
         https: {
-          key: fs.readFileSync(`${CERT_PATH}/key.pem`),
-          cert: fs.readFileSync(`${CERT_PATH}/cert.pem`)
+          key: fs.readFileSync(`${CERT_PATH}/privkey.pem`),
+          cert: fs.readFileSync(`${CERT_PATH}/fullchain.pem`)
         }
         }
       : {}),
