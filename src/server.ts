@@ -2,7 +2,7 @@ import fastify from "fastify";
 import { FastifyInstance } from "fastify/types/instance";
 import { ethers } from "ethers";
 // @ts-ignore
-import { INFURA_KEY, MOVIE_NAME, NODE_ENV } from "./constants";
+import { INFURA_KEY, MOVIE_NAME, NODE_ENV, CERT_PATH, PROD_PORT } from "./constants";
 import fs from "fs";
 import cors from "@fastify/cors";
 import path from 'path';
@@ -26,6 +26,8 @@ type ChainDetail = {
 };
 
 let movieName: string = MOVIE_NAME !== undefined ? MOVIE_NAME : fs.readdirSync(path.join(__dirname, '../raw')).find(file => file.endsWith('.mp4'))!;
+
+let productionMode = NODE_ENV === "production";
 
 const CHAIN_DETAILS: Record<number, ChainDetail> = {
   1: {
@@ -104,8 +106,8 @@ async function createServer() {
     ...(process.env.NODE_ENV === "production"
       ? {
         https: {
-          key: fs.readFileSync('./cert/key.pem'),
-          cert: fs.readFileSync('./cert/cert.pem')
+          key: fs.readFileSync(`${CERT_PATH}/key.pem`),
+          cert: fs.readFileSync(`${CERT_PATH}/cert.pem`)
         }
         }
       : {}),
@@ -125,9 +127,9 @@ async function createServer() {
       Math.random().toString(36).substring(2, 15);
 
     const clientIp = request.ip;
-    console.log("Client IP:", clientIp);  
+    if (!productionMode)console.log("Client IP:", clientIp);  
     challenges.push({ challenge, timestamp: Date.now(), ip: clientIp });
-    console.log("challenges", challenges);
+    if (!productionMode) console.log("challenges", challenges);
     return { data: `${challenge}` };
   });
 
@@ -135,13 +137,13 @@ async function createServer() {
     //recover the address from the signature
     // @ts-ignore
     const { signature, tokenId, token1155Id } = request.body;
-    console.log("verify", signature, tokenId);
-    console.log("challenges", challenges);
+    if (!productionMode) console.log("verify", signature, tokenId);
+    if (!productionMode) console.log("challenges", challenges);
 
     const clientIp = request.ip;
 
     const numericTokenId = parseInt(tokenId);
-    console.log("numericTokenId", numericTokenId);
+    if (!productionMode) console.log("numericTokenId", numericTokenId);
 
     const ownsToken = await checkOwnership(signature, numericTokenId, token1155Id, clientIp);
 
@@ -149,7 +151,7 @@ async function createServer() {
       // generate a random token
       const streamToken = Math.random().toString(36).substring(2, 15);
       streamTokens[streamToken] = { ip: clientIp, timestampExpiry: Date.now() + streamTokenExpiry };
-      console.log("streamToken: ", streamToken);
+      if (!productionMode) console.log("streamToken: ", streamToken);
       return { data: `pass`, token: `${streamToken}` }
     } else {
       return reply.status(500).send({ data: `signature not valid`});
@@ -159,11 +161,10 @@ async function createServer() {
 
   app.get('/stream/:streamtoken', async (request, reply) => {
     const filePath = path.join(__dirname, '../raw', movieName);
-
-    console.log("filePath", filePath);
+    if (!productionMode) console.log("filePath", filePath);
     // @ts-ignore
     const { streamtoken } = request.params;
-    console.log("streamtoken", streamtoken);
+    if (!productionMode) console.log("streamtoken", streamtoken);
 
     // Check if file exists and stream token is valid
     if (fs.existsSync(filePath) && streamTokens[streamtoken] && streamTokens[streamtoken].ip === request.ip && streamTokens[streamtoken].timestampExpiry >= Date.now()) {
@@ -183,7 +184,6 @@ async function createServer() {
       }
     }
   }
-
 
   console.log("Returning app from function");
   return app;
@@ -214,16 +214,16 @@ async function checkOwnership(
   //loop through all of the challenge strings which are still valid
 
   //console.log(`tokenOwner ${tokenOwner} tokenID ${tokenId} Sender: ${clientIp}`);
-  console.log("challenges tokenOwner", challenges);
+  if (!productionMode) console.log("challenges tokenOwner", challenges);
 
   for (let i = 0; i < challenges.length; i++) {
     const thisChallenge = challenges[i];
-    console.log(
+    if (!productionMode) console.log(
       "thisChallenge",
       thisChallenge,
       thisChallenge.timestamp + challengeExpiry > Date.now()
     );
-    console.log(`thisChallengeIP: ${thisChallenge.ip} clientIp: ${clientIp}`);
+    if (!productionMode) console.log(`thisChallengeIP: ${thisChallenge.ip} clientIp: ${clientIp}`);
     if (thisChallenge.timestamp + challengeExpiry >= Date.now() && thisChallenge.ip === clientIp) {
       //recover the address
       const address = ethers.verifyMessage(
@@ -234,7 +234,7 @@ async function checkOwnership(
       let isOwner = false;
       let tokenOwner = "-";
       if (token1155Id !== undefined) {
-        console.log("tokenId is undefined or NaN");
+        if (!productionMode) console.log("tokenId is undefined or NaN");
         // check owner of token
         isOwner = await is1155TokenOwner(address, token1155Id);
       } else if (tokenId !== undefined && !Number.isNaN(tokenId)) {
@@ -243,9 +243,9 @@ async function checkOwnership(
         //check balance of ERC-721 if required
       }
 
-      console.log("address", address);
-      console.log("tokenOwner", tokenOwner);
-      console.log("isOwner", isOwner);
+      if (!productionMode) console.log("address", address);
+      if (!productionMode) console.log("tokenOwner", tokenOwner);
+      if (!productionMode) console.log("isOwner", isOwner);
 
       if (isOwner || address.toLowerCase() === tokenOwner.toLowerCase()) {
         console.log("PASS!");
@@ -268,7 +268,7 @@ async function checkOwnership(
 async function is1155TokenOwner(address: string, tokenId: number): Promise<boolean> {
   console.log("isTokenOwner", address);
   const provider = getProvider(CONTRACT_CHAIN_ID);
-  console.log("provider", provider);
+  if (!productionMode) console.log("provider", provider);
 
   const queryContract = new ethers.Contract(
     CONTRACT_ADDRESS,
@@ -277,9 +277,9 @@ async function is1155TokenOwner(address: string, tokenId: number): Promise<boole
   );
 
   try {
-    console.log("queryContract", queryContract);
+    if (!productionMode) console.log("queryContract", queryContract);
     const balance = await queryContract.balanceOf(address, tokenId);
-    console.log("balance", balance);
+    if (!productionMode) console.log("balance", balance);
     return balance > 0;
   } catch (e) {
     console.log("error", e);
@@ -290,7 +290,7 @@ async function is1155TokenOwner(address: string, tokenId: number): Promise<boole
 async function getTokenOwner(tokenId: number): Promise<string> {
   console.log("getTokenOwner", tokenId);
   const provider = getProvider(CONTRACT_CHAIN_ID);
-  console.log("provider", provider);
+  if (!productionMode) console.log("provider", provider);
 
   const queryContract = new ethers.Contract(
     CONTRACT_ADDRESS,
@@ -298,7 +298,7 @@ async function getTokenOwner(tokenId: number): Promise<string> {
     provider
   );
 
-  console.log("queryContract", queryContract);
+  if (!productionMode) console.log("queryContract", queryContract);
   try {
     return await queryContract.ownerOf(tokenId);
   } catch (e) {
@@ -319,8 +319,10 @@ const start = async () => {
   try {
     const app = await createServer();
 
+    console.log("NODE_ENV", NODE_ENV);
+
     const host = "0.0.0.0";
-    const port = NODE_ENV === "production" ? 443 : 8082;
+    const port = productionMode ? Number(PROD_PORT) : 8082;
     await app.listen({ port, host });
     console.log(`Server is listening on ${host} ${port}`);
 

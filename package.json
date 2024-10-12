@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts"
+    "dev": "ts-node src/server.ts",
+    "prod": "cross-env NODE_ENV=production ts-node src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.8",
+    "cross-env": "^7.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }
